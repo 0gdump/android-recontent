@@ -60,7 +60,9 @@ Library for parsing sites using a strict system of rules-selectors.
 
 ## Demo
 
-To view a demo application that demonstrates the library's capabilities, open the project, the *demo module*
+To view a demo application that demonstrates the library's capabilities, open the project, the *demo module*. The screenshots show the site view and converted using the library:
+
+<img src="./screenshots/web.png" alt="drawing" width="216" height="410"/> <img src="./screenshots/recontent.jpg" alt="drawing"  width="216" height="410"/>
 
 ## Notes
 
