@@ -1,9 +1,3 @@
 # ReContent
 
-Гибкая библиотека для представления веб-страницы в набор Android View
-
-## Подключение
-
-## Пример
-
-## Документация
+Library for parsing sites using a strict system of rules-selectors.
