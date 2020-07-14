@@ -4,165 +4,119 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
+import android.util.Log
+import android.util.Patterns
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import open.v0gdump.recontent.callback.ParserCallback
-import open.v0gdump.recontent.callback.WebCallback
-import open.v0gdump.recontent.js.JavaScriptInterface
-import open.v0gdump.recontent.js.JavaScriptInterface.Companion.JSI_NAME
-import open.v0gdump.recontent.js.JavaScriptSources.JS_GET_DOC_SOURCE
-import open.v0gdump.recontent.js.JavaScriptSources.JS_READY_STATE_PARASITE
-import open.v0gdump.recontent.rule.Rules
+import open.v0gdump.recontent.ReContentJSI.Companion.JSI_GET_DOCUMENT_SOURCE_CODE
+import open.v0gdump.recontent.ReContentJSI.Companion.JSI_NAME
+import open.v0gdump.recontent.ReContentJSI.Companion.JSI_READY_STATE_PARASITE
+import open.v0gdump.recontent.model.SectionRule
+import org.apache.commons.text.StringEscapeUtils
+import org.jsoup.Jsoup
+import org.jsoup.nodes.*
 
-class ReContent {
-
-    private var isInitialized = false
-
-    private lateinit var context: Context
-    private lateinit var web: WebView
-
-    private lateinit var rules: Rules
-
-    private var webCallback: WebCallback? = null
-    private var parserCallback: ParserCallback? = null
-
-    /**
-     * Инициализирует и настраивает библиотеку
-     */
-    fun init(context: Context, callback: WebCallback? = null): ReContent {
-
-        alreadyCreated()
-
-        this.webCallback = callback
-
-        setupWebView(context)
-
-        return this
-    }
-
-    /**
-     * Инициализирует систему правил
-     */
-    fun setupRules(
-        initializer: (rules: Rules) -> Unit,
-        callback: ParserCallback? = null
-    ): ReContent {
-
-        rulesAvailable()
-
-        rules = Rules()
-        parserCallback = callback
-
-        initializer(rules)
-
-        return this
-    }
-
-    //region Validators
-
-    /**
-     * Начинает загрузку данных с сервера
-     */
-    fun load(url: String) {
-        rulesNotInitialized()
-        notValidUrl(url)
-
-        web.loadUrl(url)
-        webCallback?.onNavigate(url)
-    }
-
-    /**
-     * Вызывает исключение, если ReContent был ранее инициализирован
-     */
-    private fun alreadyCreated() =
-        check(!isInitialized) { "ReContent was already initialized" }
-
-    /**
-     * Вызывает исключение, если url не валиден
-     */
-    private fun notValidUrl(url: String) =
-        check(Validator.isValidUrl(url)) { "Url not valid: $url" }
-
-    /**
-     * Вызывает исключение, если ранее были созданы правила
-     */
-    private fun rulesAvailable() =
-        check(!::rules.isInitialized) { "Rules was already initialized" }
-
-    /**
-     * Вызывает исключение, если правила не были созданы ранее
-     */
-    private fun rulesNotInitialized() =
-        check(::rules.isInitialized) { "Rules wasn't initialized" }
-
-    //endregion
+class ReContent(
+    context: Context,
+    val eventsHandler: ReContentEvents? = null
+) {
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun setupWebView(context: Context) {
-        this.context = context
+    private val web = WebView(context).apply {
+        settings.javaScriptEnabled = true
+        settings.blockNetworkImage = true
+        settings.loadsImagesAutomatically = false
 
-        web = WebView(context).apply {
-            settings.javaScriptEnabled = true
-            settings.blockNetworkImage = true
-            settings.loadsImagesAutomatically = false
-        }
+        webViewClient = webClient
 
-        setupJSI()
-        setupWebViewClient()
-    }
-
-    private fun setupJSI() {
-        web.addJavascriptInterface(
-            JavaScriptInterface { fullLoadingCallback() },
+        addJavascriptInterface(
+            ReContentJSI { onDocumentReady() },
             JSI_NAME
         )
     }
+    private val webClient = object : WebViewClient() {
 
-    private fun setupWebViewClient() {
-        web.webViewClient = object : WebViewClient() {
+        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            super.onPageStarted(view, url, favicon)
+            eventsHandler?.onPageStarted(url!!)
+            view?.evaluateJavascript(JSI_READY_STATE_PARASITE, null)
+        }
 
-            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                super.onPageStarted(view, url, favicon)
-
-                /*
-                    Привязываемся к событию полной загрузки документа (state = ready)
-                    Как только документ загрузится полностью, произойдёт вызов fullLoadingCallback
-                    Через JSI
-                */
-                view?.evaluateJavascript(JS_READY_STATE_PARASITE, null)
-
-                webCallback?.onDocumentLoadStarted(url!!)
-            }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                webCallback?.onDocumentLoadFinished(url!!)
-            }
-
-            override fun shouldOverrideUrlLoading(
-                view: WebView?,
-                url: String
-            ): Boolean {
-                return !url.endsWith(".css")
-            }
+        override fun shouldOverrideUrlLoading(
+            view: WebView?,
+            url: String
+        ): Boolean {
+            return !url.endsWith(".css")
         }
     }
 
-    private fun fullLoadingCallback() {
-        Handler(context.mainLooper).post {
-            web.evaluateJavascript(JS_GET_DOC_SOURCE) { source ->
+    private var sectionsRules = listOf<SectionRule>()
+
+    fun load(url: String) {
+
+        throwWhenUrlIsIncorrect(url)
+
+        if (sectionsRules.isEmpty()) {
+            Log.w("recontent", "No rules found!")
+        }
+
+        web.loadUrl(url)
+        eventsHandler?.onLoadStart(url)
+    }
+
+    private fun throwWhenUrlIsIncorrect(url: String) =
+        check(Patterns.WEB_URL.matcher(url).matches()) { "Url not valid: $url" }
+
+    private fun onDocumentReady() {
+        eventsHandler?.onPageReady(web.url)
+        Handler(web.context.mainLooper).post {
+            web.evaluateJavascript(JSI_GET_DOCUMENT_SOURCE_CODE) { source ->
                 documentSourcesReceived(source)
             }
         }
     }
 
     private fun documentSourcesReceived(source: String) {
-        val doc = Parser.parseSource(source)
+        val normalized = StringEscapeUtils.unescapeJava(source)
+        Jsoup.parse(normalized).let {
+            eventsHandler?.beforeParse(web.url, it)
+            matchRules(it)
+            eventsHandler?.afterParse(web.url)
+        }
+    }
 
-        webCallback?.onDocumentReady(web.url, doc)
+    private fun matchRules(doc: Document) {
+        sectionsRules.forEach sectionsParse@{ sr ->
 
-        parserCallback?.onParserStart()
-        Parser.matchRules(rules, doc)
-        parserCallback?.onParserEnd()
+            val sectionNode = doc.selectFirst(sr.selector)
+            val sectionChildren = sectionNode.childNodes()
+
+            sectionChildren.forEach childMatch@{ child ->
+                when (child) {
+                    is Element -> {
+                        sr.childRules.forEach { rule ->
+                            if (child.`is`(rule.selector)) {
+                                rule.callback(child, rule.tag)
+                            }
+                        }
+                    }
+                    is TextNode -> {
+                        sr.specificNodesHandler?.textNodeHandler(child)
+                    }
+                    is XmlDeclaration -> {
+                        sr.specificNodesHandler?.xmlDeclarationHandler(child)
+                    }
+                    is DocumentType -> {
+                        sr.specificNodesHandler?.documentTypeHandler(child)
+                    }
+                    is DataNode -> {
+                        sr.specificNodesHandler?.dataNodeHandler(child)
+                    }
+                    is Comment -> {
+                        sr.specificNodesHandler?.commentHandler(child)
+                    }
+                }
+            }
+        }
     }
 }
