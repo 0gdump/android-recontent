@@ -22,35 +22,27 @@ class ReContent(
 ) {
 
     @SuppressLint("SetJavaScriptEnabled")
-    private val web = WebView(context).apply {
+    val web = WebView(context).apply {
         settings.javaScriptEnabled = true
         settings.blockNetworkImage = true
         settings.loadsImagesAutomatically = false
 
-        webViewClient = webClient
+        // FIXME(CODE STYLE) Move WebViewClient declaration outside
+        webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                eventsHandler?.onPageStarted?.invoke(url!!)
+                view?.evaluateJavascript(JSI_READY_STATE_PARASITE, null)
+            }
+        }
 
         addJavascriptInterface(
             ReContentJSI { onDocumentReady() },
             JSI_NAME
         )
     }
-    private val webClient = object : WebViewClient() {
 
-        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-            super.onPageStarted(view, url, favicon)
-            eventsHandler?.onPageStarted(url!!)
-            view?.evaluateJavascript(JSI_READY_STATE_PARASITE, null)
-        }
-
-        override fun shouldOverrideUrlLoading(
-            view: WebView?,
-            url: String
-        ): Boolean {
-            return !url.endsWith(".css")
-        }
-    }
-
-    private var sectionsRules = listOf<SectionRule>()
+    var sectionsRules = listOf<SectionRule>()
 
     fun load(url: String) {
 
@@ -61,14 +53,14 @@ class ReContent(
         }
 
         web.loadUrl(url)
-        eventsHandler?.onLoadStart(url)
+        eventsHandler?.onLoadStart?.invoke(url)
     }
 
     private fun throwWhenUrlIsIncorrect(url: String) =
         check(Patterns.WEB_URL.matcher(url).matches()) { "Url not valid: $url" }
 
     private fun onDocumentReady() {
-        eventsHandler?.onPageReady(web.url)
+        eventsHandler?.onPageReady?.invoke(web.url)
         Handler(web.context.mainLooper).post {
             web.evaluateJavascript(JSI_GET_DOCUMENT_SOURCE_CODE) { source ->
                 documentSourcesReceived(source)
@@ -79,13 +71,14 @@ class ReContent(
     private fun documentSourcesReceived(source: String) {
         val normalized = StringEscapeUtils.unescapeJava(source)
         Jsoup.parse(normalized).let {
-            eventsHandler?.beforeParse(web.url, it)
+            eventsHandler?.beforeParse?.invoke(web.url, it)
             matchRules(it)
-            eventsHandler?.afterParse(web.url)
+            eventsHandler?.afterParse?.invoke(web.url)
         }
     }
 
     private fun matchRules(doc: Document) {
+        Log.d("recontent", "WTF")
         sectionsRules.forEach sectionsParse@{ sr ->
 
             val sectionNode = doc.selectFirst(sr.selector)
@@ -101,19 +94,19 @@ class ReContent(
                         }
                     }
                     is TextNode -> {
-                        sr.specificNodesHandler?.textNodeHandler(child)
+                        sr.specificNodesHandler?.textNodeHandler?.invoke(child)
                     }
                     is XmlDeclaration -> {
-                        sr.specificNodesHandler?.xmlDeclarationHandler(child)
+                        sr.specificNodesHandler?.xmlDeclarationHandler?.invoke(child)
                     }
                     is DocumentType -> {
-                        sr.specificNodesHandler?.documentTypeHandler(child)
+                        sr.specificNodesHandler?.documentTypeHandler?.invoke(child)
                     }
                     is DataNode -> {
-                        sr.specificNodesHandler?.dataNodeHandler(child)
+                        sr.specificNodesHandler?.dataNodeHandler?.invoke(child)
                     }
                     is Comment -> {
-                        sr.specificNodesHandler?.commentHandler(child)
+                        sr.specificNodesHandler?.commentHandler?.invoke(child)
                     }
                 }
             }

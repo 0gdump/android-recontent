@@ -5,17 +5,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import kotlinx.android.synthetic.main.activity_main.*
 import open.v0gdump.recontent.ReContent
-import open.v0gdump.recontent.callback.ParserCallback
-import open.v0gdump.recontent.callback.WebCallback
-import open.v0gdump.recontent.rule.RootParser
-import open.v0gdump.recontent.rule.Rule
-import open.v0gdump.recontent.rule.Rules
-import open.v0gdump.recontent.rule.TextNodeRule
+import open.v0gdump.recontent.ReContentEvents
+import open.v0gdump.recontent.model.NodeRule
+import open.v0gdump.recontent.model.SectionRule
+import open.v0gdump.recontent.model.SpecificNodesHandler
 import open.v0gdump.recontent_demo.R
 import open.v0gdump.recontent_demo.model.Item
 import open.v0gdump.recontent_demo.model.ItemImage
 import open.v0gdump.recontent_demo.model.ItemText
-import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
 
@@ -27,62 +24,40 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val webCallback = object : WebCallback {
-
-            override fun onNavigate(url: String) {
-
-            }
-
-            override fun onDocumentLoadStarted(url: String) {
-
-            }
-
-            override fun onDocumentLoadFinished(url: String) {
-
-            }
-
-            override fun onDocumentReady(url: String, doc: Document) {
+        val eventsHandler = ReContentEvents(
+            beforeParse = { _, doc ->
                 title = doc.title()
-            }
-        }
-
-        val parserCallback = object : ParserCallback {
-
-            override fun onParserStart() {
-
-            }
-
-            override fun onParserEnd() {
-                val adapter = MainAdapter(data)
-
+            },
+            afterParse = {
                 recycler.setHasFixedSize(true)
                 recycler.setItemViewCacheSize(20)
 
                 recycler.layoutManager = LinearLayoutManager(this@MainActivity)
-                recycler.adapter = adapter
+                recycler.adapter = MainAdapter(data)
             }
-        }
+        )
 
-        ReContent()
-            .init(this, webCallback)
-            .setupRules({ setupRules(it) }, parserCallback)
-            .load("https://varlamov.ru/3685280.html")
+        setContentView(R.layout.activity_main)
+        ReContent(this, eventsHandler).apply {
+            sectionsRules = createRules()
+            load("https://varlamov.ru/3685280.html")
+        }
     }
 
-    private fun setupRules(rules: Rules) {
-        rules.add(
-            RootParser(
-                rootSelector = "div#entrytext.j-e-text",
-                textNodeRule = TextNodeRule(callback = { tn -> buildText(tn) }),
-                rules = listOf(
-                    Rule(
-                        selector = "span.j-imagewrapper",
-                        callback = { e, t -> buildImage(e, t) }
-                    )
+    private fun createRules(): List<SectionRule> = listOf(
+        SectionRule(
+            selector = "div#entrytext.j-e-text",
+            childRules = listOf(
+                NodeRule(
+                    selector = "span.j-imagewrapper",
+                    callback = { e, t -> buildImage(e, t) }
                 )
+            ),
+            specificNodesHandler = SpecificNodesHandler(
+                textNodeHandler = { node -> buildText(node) }
             )
         )
-    }
+    )
 
     //region ReContent Callbacks
 
