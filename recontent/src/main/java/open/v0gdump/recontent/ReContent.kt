@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.util.Log
 import android.util.Patterns
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import open.v0gdump.recontent.ReContentJSI.Companion.JSI_GET_DOCUMENT_SOURCE_CODE
@@ -29,6 +31,16 @@ class ReContent(
 
         // FIXME(CODE STYLE) Move WebViewClient declaration outside
         webViewClient = object : WebViewClient() {
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
+                super.onReceivedError(view, request, error)
+                eventsHandler?.onError?.invoke()
+            }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 eventsHandler?.onPageStarted?.invoke(url!!)
