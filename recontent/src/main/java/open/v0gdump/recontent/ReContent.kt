@@ -38,7 +38,12 @@ class ReContent(
                 error: WebResourceError?
             ) {
                 super.onReceivedError(view, request, error)
-                eventsHandler?.onError?.invoke()
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    eventsHandler?.onError?.invoke(RuntimeException("Error ${error!!.errorCode}. ${error.description}"))
+                } else {
+                    eventsHandler?.onError?.invoke(RuntimeException("Network exception"))
+                }
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {

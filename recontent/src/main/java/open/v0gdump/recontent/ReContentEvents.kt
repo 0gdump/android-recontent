@@ -3,7 +3,7 @@ package open.v0gdump.recontent
 import org.jsoup.nodes.Document
 
 data class ReContentEvents(
-    val onError: (() -> Unit)? = null,
+    val onError: ((Throwable) -> Unit)? = null,
     val onLoadStart: ((url: String) -> Unit)? = null,
     val onPageStarted: ((url: String) -> Unit)? = null,
     val onPageReady: ((url: String) -> Unit)? = null,
