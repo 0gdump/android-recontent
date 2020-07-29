@@ -39,10 +39,19 @@ class ReContent(
             ) {
                 super.onReceivedError(view, request, error)
 
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    eventsHandler?.onError?.invoke(RuntimeException("Error ${error!!.errorCode}. ${error.description}"))
-                } else {
-                    eventsHandler?.onError?.invoke(RuntimeException("Network exception"))
+                // Filter page components errors by url
+                if (request?.url.toString() != view?.url) return
+
+                when {
+                    error == null -> {
+                        eventsHandler?.onError?.invoke(RuntimeException("Network exception"))
+                    }
+                    android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M -> {
+                        eventsHandler?.onError?.invoke(RuntimeException("Error ${error.description}::${error.errorCode}"))
+                    }
+                    else -> {
+                        eventsHandler?.onError?.invoke(RuntimeException("Network exception"))
+                    }
                 }
             }
 
