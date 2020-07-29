@@ -104,38 +104,51 @@ class ReContent(
     }
 
     private fun matchRules(doc: Document) {
-        Log.d("recontent", "WTF")
         sectionsRules.forEach sectionsParse@{ sr ->
-
             val sectionNode = doc.selectFirst(sr.selector)
             val sectionChildren = sectionNode.childNodes()
 
             sectionChildren.forEach childMatch@{ child ->
-                when (child) {
-                    is Element -> {
-                        sr.childRules.forEach { rule ->
-                            if (child.`is`(rule.selector)) {
-                                rule.callback(child, rule.tag)
-                            }
-                        }
-                    }
-                    is TextNode -> {
-                        sr.specificNodesHandler?.textNodeHandler?.invoke(child)
-                    }
-                    is XmlDeclaration -> {
-                        sr.specificNodesHandler?.xmlDeclarationHandler?.invoke(child)
-                    }
-                    is DocumentType -> {
-                        sr.specificNodesHandler?.documentTypeHandler?.invoke(child)
-                    }
-                    is DataNode -> {
-                        sr.specificNodesHandler?.dataNodeHandler?.invoke(child)
-                    }
-                    is Comment -> {
-                        sr.specificNodesHandler?.commentHandler?.invoke(child)
-                    }
-                }
+                matchNode(sr, child)
             }
         }
+    }
+
+    private fun matchNode(sectionRule: SectionRule, element: Node) {
+        when (element) {
+            is Element -> {
+                if (!matchElement(sectionRule, element)) {
+                    sectionRule.specificNodesHandler?.unmatchedElementHandler?.invoke(element)
+                }
+            }
+            is TextNode -> {
+                sectionRule.specificNodesHandler?.textNodeHandler?.invoke(element)
+            }
+            is XmlDeclaration -> {
+                sectionRule.specificNodesHandler?.xmlDeclarationHandler?.invoke(element)
+            }
+            is DocumentType -> {
+                sectionRule.specificNodesHandler?.documentTypeHandler?.invoke(element)
+            }
+            is DataNode -> {
+                sectionRule.specificNodesHandler?.dataNodeHandler?.invoke(element)
+            }
+            is Comment -> {
+                sectionRule.specificNodesHandler?.commentHandler?.invoke(element)
+            }
+        }
+    }
+
+    private fun matchElement(sectionRule: SectionRule, element: Element): Boolean {
+        var isMatched = true
+
+        sectionRule.childRules.forEach { rule ->
+            if (element.`is`(rule.selector)) {
+                isMatched = true
+                rule.callback(element, rule.tag)
+            }
+        }
+
+        return isMatched
     }
 }
