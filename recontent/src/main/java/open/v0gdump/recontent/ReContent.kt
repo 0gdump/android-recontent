@@ -149,7 +149,7 @@ class ReContent(
             if (!element.`is`(rule.selector)) return@forEach
 
             isMatched = true
-            rule.matchCallback(element, rule.tag)
+            rule.matchCallback?.invoke(element, rule.tag)
 
             if (rule.sectionRule != null) {
                 element.childNodes().forEach childMatch@{ child ->
