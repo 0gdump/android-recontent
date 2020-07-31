@@ -109,46 +109,54 @@ class ReContent(
             val sectionChildren = sectionNode.childNodes()
 
             sectionChildren.forEach childMatch@{ child ->
-                matchNode(sr, child)
+                parseNodeByRule(sr, child)
             }
         }
     }
 
-    private fun matchNode(sectionRule: SectionRule, element: Node) {
-        when (element) {
+    private fun parseNodeByRule(sectionRule: SectionRule, node: Node) {
+        when (node) {
             is Element -> {
-                if (!matchElement(sectionRule, element)) {
-                    sectionRule.specificNodesHandler?.unmatchedElementHandler?.invoke(element)
-                }
+                processElement(node, sectionRule)
             }
             is TextNode -> {
-                sectionRule.specificNodesHandler?.textNodeHandler?.invoke(element)
+                sectionRule.specificNodesHandler?.textNodeHandler?.invoke(node)
             }
             is XmlDeclaration -> {
-                sectionRule.specificNodesHandler?.xmlDeclarationHandler?.invoke(element)
+                sectionRule.specificNodesHandler?.xmlDeclarationHandler?.invoke(node)
             }
             is DocumentType -> {
-                sectionRule.specificNodesHandler?.documentTypeHandler?.invoke(element)
+                sectionRule.specificNodesHandler?.documentTypeHandler?.invoke(node)
             }
             is DataNode -> {
-                sectionRule.specificNodesHandler?.dataNodeHandler?.invoke(element)
+                sectionRule.specificNodesHandler?.dataNodeHandler?.invoke(node)
             }
             is Comment -> {
-                sectionRule.specificNodesHandler?.commentHandler?.invoke(element)
+                sectionRule.specificNodesHandler?.commentHandler?.invoke(node)
             }
         }
     }
 
-    private fun matchElement(sectionRule: SectionRule, element: Element): Boolean {
+    private fun processElement(
+        element: Element,
+        sectionRule: SectionRule
+    ) {
         var isMatched = false
-
         sectionRule.childRules.forEach { rule ->
-            if (element.`is`(rule.selector)) {
-                isMatched = true
-                rule.callback(element, rule.tag)
+            if (!element.`is`(rule.selector)) return@forEach
+
+            isMatched = true
+            rule.matchCallback(element, rule.tag)
+
+            if (rule.sectionRule != null) {
+                element.childNodes().forEach childMatch@{ child ->
+                    parseNodeByRule(rule.sectionRule, child)
+                }
             }
         }
 
-        return isMatched
+        if (!isMatched) {
+            sectionRule.specificNodesHandler?.unmatchedElementHandler?.invoke(element)
+        }
     }
 }
