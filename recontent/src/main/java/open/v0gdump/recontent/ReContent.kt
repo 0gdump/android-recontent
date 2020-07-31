@@ -156,6 +156,8 @@ class ReContent(
                     parseNodeByRule(rule.sectionRule, child)
                 }
             }
+
+            rule.treeParsedCallback?.invoke(element, rule.tag)
         }
 
         if (!isMatched) {

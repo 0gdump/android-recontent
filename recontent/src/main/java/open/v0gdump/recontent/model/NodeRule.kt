@@ -5,6 +5,7 @@ import org.jsoup.nodes.Element
 data class NodeRule(
     val selector: String,
     val matchCallback: (element: Element, tag: String?) -> Unit,
-    val tag: String? = null,
-    val sectionRule: SectionRule? = null
+    val treeParsedCallback: ((element: Element, tag: String?) -> Unit)? = null,
+    val sectionRule: SectionRule? = null,
+    val tag: String? = null
 )
