@@ -105,6 +105,9 @@ class ReContent(
 
     private fun matchRules(doc: Document) {
         sectionsRules.forEach sectionsParse@{ sr ->
+
+            if (sr.selector == null) return@sectionsParse
+
             val sectionNode = doc.selectFirst(sr.selector)
             val sectionChildren = sectionNode.childNodes()
 
